@@ -1,0 +1,85 @@
+name: Bug report
+description: Report a problem in the passive Domain Footprint Atlas browser tool
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Domain Footprint Atlas. This project is a static, passive-only browser tool: it does not crawl, scan, authenticate, store secrets, or call private APIs.
+  - type: input
+    id: domain-input
+    attributes:
+      label: Domain input
+      description: Enter the exact domain or URL you used. Redact private hostnames if needed.
+      placeholder: example.com
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What did you expect the tool to show or do?
+      placeholder: The DNS panel should show public passive records for the submitted domain.
+    validations:
+      required: true
+  - type: textarea
+    id: observed-behavior
+    attributes:
+      label: Observed behavior
+      description: What actually happened?
+      placeholder: The panel stayed empty even though other passive sources were populated.
+    validations:
+      required: true
+  - type: dropdown
+    id: source-panel
+    attributes:
+      label: Source panel affected
+      description: Select the panel or area where the issue appears.
+      options:
+        - Overview
+        - DNS
+        - RDAP
+        - Certificates
+        - GitHub footprint
+        - Timeline
+        - Export
+        - Localization
+        - Layout or responsive UI
+        - Other or multiple sections
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      description: Include browser, version, OS, and device class if relevant.
+      placeholder: Chrome 126 on Windows 11 desktop
+    validations:
+      required: true
+  - type: textarea
+    id: console-errors
+    attributes:
+      label: Console errors
+      description: Paste any browser console errors. Use plain text and remove sensitive values.
+      render: shell
+      placeholder: "TypeError: Failed to fetch ..."
+    validations:
+      required: false
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or screen recording
+      description: Optional, but helpful for layout, localization, or panel rendering issues.
+      placeholder: Drag images or recordings here.
+    validations:
+      required: false
+  - type: checkboxes
+    id: passive-caveat
+    attributes:
+      label: Passive-source caveat
+      description: Confirm this report does not request active scanning or private/authenticated data collection.
+      options:
+        - label: I understand Domain Footprint Atlas only uses passive, public, browser-accessible sources and should not crawl, scan, authenticate, or collect secrets.
+          required: true

@@ -1,0 +1,17 @@
+{
+  "name": "Domain Footprint Atlas",
+  "short_name": "Atlas",
+  "start_url": "/domain-footprint-atlas/",
+  "scope": "/domain-footprint-atlas/",
+  "display": "standalone",
+  "theme_color": "#0f766e",
+  "background_color": "#020617",
+  "icons": [
+    {
+      "src": "/domain-footprint-atlas/favicon.svg",
+      "sizes": "48x48",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

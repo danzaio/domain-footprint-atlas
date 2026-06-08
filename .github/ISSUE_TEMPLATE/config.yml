@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Live Domain Footprint Atlas
+    url: https://danzaio.github.io/domain-footprint-atlas/
+    about: Use the public static browser tool before reporting behavior-specific issues.
+  - name: Repository discussions
+    url: https://github.com/danzaio/domain-footprint-atlas/discussions
+    about: Use discussions for broad questions, passive-source ideas, and non-issue conversation when enabled for the repository.

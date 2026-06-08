@@ -5,6 +5,10 @@
   "description": "Passive browser-based OSINT atlas for public domain footprint mapping.",
   "homepage": "https://danzaio.github.io/domain-footprint-atlas/",
   "type": "module",
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

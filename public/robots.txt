@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://danzaio.github.io/domain-footprint-atlas/sitemap.xml

@@ -1,0 +1,76 @@
+name: Feature request
+description: Suggest a passive source, UI improvement, or repository enhancement
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Domain Footprint Atlas must remain a static, passive-only browser tool. Feature requests should avoid crawling, scanning, authentication, secrets, private APIs, or backend services.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What domain-footprint workflow is difficult, unclear, or missing today?
+      placeholder: It is hard to compare certificate transparency results with DNS observations in one view.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-change
+    attributes:
+      label: Proposed passive source or UI improvement
+      description: Describe the passive data source, UI behavior, copy change, or repository improvement you want.
+      placeholder: Add a collapsible CT log summary using a public browser-accessible endpoint, with no stored credentials.
+    validations:
+      required: true
+  - type: input
+    id: source-url
+    attributes:
+      label: Source URL
+      description: Link to the passive public source, documentation, or example. Use a generic source URL when possible.
+      placeholder: https://example.org/docs/passive-source
+    validations:
+      required: false
+  - type: dropdown
+    id: privacy-security-impact
+    attributes:
+      label: Privacy and security impact
+      description: How does this change affect users, domains, or browser-side data handling?
+      options:
+        - No additional data collection or requests
+        - Adds a passive public request from the browser
+        - Changes how existing passive data is displayed
+        - Changes export, copy, or local browser handling
+        - Unsure and needs review
+    validations:
+      required: true
+  - type: textarea
+    id: privacy-security-notes
+    attributes:
+      label: Privacy and security notes
+      description: Explain why the feature preserves the passive-only, no-secrets, no-backend model.
+      placeholder: The source is public, requires no key, and only receives the domain typed by the user.
+    validations:
+      required: true
+  - type: dropdown
+    id: localization-impact
+    attributes:
+      label: Localization copy impact
+      description: Does this change require visible UI copy in EN-US, PT-BR, or both?
+      options:
+        - No visible copy changes
+        - EN-US copy only
+        - PT-BR copy only
+        - EN-US and PT-BR copy
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add examples, screenshots, or links that clarify the request.
+      placeholder: Related tools, screenshots, or source documentation.
+    validations:
+      required: false
