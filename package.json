@@ -1,7 +1,9 @@
 {
   "name": "domain-footprint-atlas",
-  "private": true,
-  "version": "0.0.0",
+  "private": false,
+  "version": "1.0.0",
+  "description": "Passive browser-based OSINT atlas for public domain footprint mapping.",
+  "homepage": "https://danzaio.github.io/domain-footprint-atlas/",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +11,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "verify": "npm run lint && npm run typecheck && npm run test -- --run && npm run build"
   },
   "dependencies": {
     "react": "^19.2.6",
