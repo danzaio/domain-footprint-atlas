@@ -55,9 +55,16 @@ function okResult<T>(source: EvidenceSource, data: T, warning?: string): SourceR
 }
 
 function errorResult<T>(source: EvidenceSource, data: T, error: unknown): SourceResult<T> {
-  const message = error instanceof Error ? error.message : String(error)
-  return { status: 'error', data, error: message, queriedAt: nowIso(), source }
+  return { status: 'error', data, error: errorMessage(error), queriedAt: nowIso(), source }
 }
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function conciseError(error: unknown): string {
+  return errorMessage(error).replace(/ from https?:\/\/\S+/g, '')
+}
+
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController()
@@ -122,18 +129,24 @@ export function parseDnsResponse(type: DnsType, response: DnsResponse): DnsRecor
 }
 
 export async function fetchDnsRecords(domain: string): Promise<SourceResult<DnsRecord[]>> {
-  try {
-    const batches = await Promise.all(
-      DNS_TYPES.map(async (type) => {
-        const url = `${CLOUDFLARE_DOH}?name=${encodeURIComponent(domain)}&type=${type}`
-        const json = await fetchJson<DnsResponse>(url, { headers: { accept: 'application/dns-json' } })
-        return parseDnsResponse(type, json)
-      }),
-    )
-    return okResult(sourceCatalog.dns, batches.flat())
-  } catch (error) {
-    return errorResult(sourceCatalog.dns, [], error)
+  const settled = await Promise.allSettled(
+    DNS_TYPES.map(async (type) => {
+      const url = `${CLOUDFLARE_DOH}?name=${encodeURIComponent(domain)}&type=${type}`
+      const json = await fetchJson<DnsResponse>(url, { headers: { accept: 'application/dns-json' } })
+      return { type, records: parseDnsResponse(type, json) }
+    }),
+  )
+
+  const records = settled.flatMap((item) => (item.status === 'fulfilled' ? item.value.records : []))
+  const failures = settled
+    .map((item, index) => (item.status === 'rejected' ? `${DNS_TYPES[index]}: ${conciseError(item.reason)}` : undefined))
+    .filter((message): message is string => Boolean(message))
+
+  if (failures.length === DNS_TYPES.length) {
+    return errorResult(sourceCatalog.dns, [], failures.join('; '))
   }
+
+  return okResult(sourceCatalog.dns, records, failures.length ? `DNS lookup failures: ${failures.join('; ')}` : undefined)
 }
 
 interface RdapEvent {
@@ -200,7 +213,8 @@ export function summarizeRdapDomain(json: RdapDomainJson): RdapSummary {
     country: json.country,
     events: (json.events ?? [])
       .filter((event): event is Required<RdapEvent> => Boolean(event.eventAction && event.eventDate))
-      .map((event) => ({ action: event.eventAction, date: event.eventDate })),
+      .map((event) => ({ action: event.eventAction, date: event.eventDate }))
+      .sort((left, right) => Date.parse(left.date) - Date.parse(right.date)),
     nameservers: uniqueSorted((json.nameservers ?? []).map((server) => server.ldhName ?? '')),
     entities: (json.entities ?? []).map(summarizeEntity),
     links: uniqueSorted((json.links ?? []).map((link) => link.href ?? '')),
@@ -263,16 +277,20 @@ interface CertSpotterIssuance {
   cert_der_sha256?: string
 }
 
-export function parseCertificateSummaries(json: CertSpotterIssuance[], domain: string): CertificateSummary[] {
-  return json.map((item, index) => ({
-    id: item.id ?? `${domain}-${index}`,
-    dnsNames: uniqueSorted(item.dns_names ?? []),
-    issuer: item.issuer?.name,
-    notBefore: item.not_before,
-    notAfter: item.not_after,
-    certDerSha256: item.cert_der_sha256,
-    sourceUrl: `${CERT_SPOTTER_BASE}?domain=${encodeURIComponent(domain)}&include_subdomains=true&expand=dns_names&expand=issuer`,
-  }))
+export function parseCertificateSummaries(json: unknown, domain: string): CertificateSummary[] {
+  if (!Array.isArray(json)) return []
+
+  return json
+    .filter((item): item is CertSpotterIssuance => Boolean(item && typeof item === 'object'))
+    .map((item, index) => ({
+      id: typeof item.id === 'string' ? item.id : `${domain}-${index}`,
+      dnsNames: uniqueSorted(Array.isArray(item.dns_names) ? item.dns_names.filter((name) => typeof name === 'string') : []),
+      issuer: item.issuer && typeof item.issuer.name === 'string' ? item.issuer.name : undefined,
+      notBefore: typeof item.not_before === 'string' ? item.not_before : undefined,
+      notAfter: typeof item.not_after === 'string' ? item.not_after : undefined,
+      certDerSha256: typeof item.cert_der_sha256 === 'string' ? item.cert_der_sha256 : undefined,
+      sourceUrl: `${CERT_SPOTTER_BASE}?domain=${encodeURIComponent(domain)}&include_subdomains=true&expand=dns_names&expand=issuer`,
+    }))
 }
 
 export async function fetchCertificates(domain: string): Promise<SourceResult<CertificateSummary[]>> {

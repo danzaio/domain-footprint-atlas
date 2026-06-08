@@ -109,6 +109,7 @@ function DnsPanel({ report, t }: { report: DomainReport | null; t: (key: I18nKey
       {report && report.dns.data.length ? (
         <div className="table-wrap">
           <table>
+            <caption>{t('dns.title')}</caption>
             <thead>
               <tr>
                 <th>Type</th>
@@ -298,7 +299,7 @@ function ExportPanel({ report, locale, t }: { report: DomainReport | null; local
         <button type="button" disabled={!report} onClick={() => copy(markdown)}>{t('export.copyMarkdown')}</button>
         <button type="button" disabled={!report} onClick={() => report && downloadText(`${report.domain}-atlas.md`, markdown, 'text/markdown')}>{t('export.downloadMarkdown')}</button>
       </div>
-      {notice ? <p className="notice">{notice}</p> : null}
+      {notice ? <p className="notice" role="status" aria-live="polite">{notice}</p> : null}
       {report ? <pre className="markdown-preview">{markdown}</pre> : <p className="muted">{t('app.emptyBody')}</p>}
     </section>
   )
@@ -311,6 +312,7 @@ function App() {
   const [errorKey, setErrorKey] = useState<I18nKey | null>(null)
   const [loading, setLoading] = useState(false)
   const t = (key: I18nKey) => translate(locale, key)
+  const liveStatus = loading ? t('app.running') : errorKey ? t(errorKey) : ''
 
   useEffect(() => {
     window.localStorage.setItem(localeStorageKey, locale)
@@ -337,6 +339,7 @@ function App() {
 
   return (
     <main>
+      <a className="skip-link" href="#report-content">{t('overview.title')}</a>
       <header className="topbar">
         <a className="brand" href="#top">{t('app.title')}</a>
         <nav aria-label="Primary">
@@ -372,7 +375,8 @@ function App() {
               <button type="button" className="secondary" onClick={() => { setReport(null); setErrorKey(null); setDomainInput('') }}>{t('app.reset')}</button>
             </div>
             <p id="domain-help" className="helper">{t('app.domainHelp')}</p>
-            {errorKey ? <p id="domain-error" className="error-text">{t(errorKey)}</p> : null}
+            <p className="sr-only" role="status" aria-live="polite">{liveStatus}</p>
+            {errorKey ? <p id="domain-error" className="error-text" role="alert">{t(errorKey)}</p> : null}
           </form>
         </div>
         <aside className="hero-aside" aria-label={t('overview.sources')}>
@@ -394,7 +398,7 @@ function App() {
             <a href={`#${section.id}`} key={section.id}>{t(section.label)}</a>
           ))}
         </aside>
-        <div className="content-stack">
+        <div className="content-stack" id="report-content" tabIndex={-1}>
           <Overview report={report} t={t} />
           <DnsPanel report={report} t={t} />
           <RdapPanel report={report} t={t} />

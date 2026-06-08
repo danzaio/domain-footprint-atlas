@@ -64,7 +64,10 @@ describe('source parsing', () => {
       handle: '2336799_DOMAIN_COM-VRSN',
       ldhName: 'EXAMPLE.COM',
       status: ['active'],
-      events: [{ eventAction: 'registration', eventDate: '1995-08-14T04:00:00Z' }],
+      events: [
+        { eventAction: 'last changed', eventDate: '2024-01-02T00:00:00Z' },
+        { eventAction: 'registration', eventDate: '1995-08-14T04:00:00Z' },
+      ],
       nameservers: [{ ldhName: 'A.IANA-SERVERS.NET' }, { ldhName: 'a.iana-servers.net' }],
       entities: [
         {
@@ -77,10 +80,24 @@ describe('source parsing', () => {
     })
 
     expect(summary.registrar).toBe('Example Registrar')
-    expect(summary.events).toEqual([{ action: 'registration', date: '1995-08-14T04:00:00Z' }])
+    expect(summary.events).toEqual([
+      { action: 'registration', date: '1995-08-14T04:00:00Z' },
+      { action: 'last changed', date: '2024-01-02T00:00:00Z' },
+    ])
     expect(summary.nameservers).toEqual(['a.iana-servers.net'])
   })
 
+  it('returns no certificates for non-array input and skips malformed certificate entries', () => {
+    expect(parseCertificateSummaries({ dns_names: ['www.example.com'] }, 'example.com')).toEqual([])
+
+    expect(() => parseCertificateSummaries([null, false, 'bad', 42], 'example.com')).not.toThrow()
+    expect(
+      parseCertificateSummaries(
+        [null, false, 'bad', 42, { id: 'valid', dns_names: ['www.example.com'], issuer: { name: 'Fixture CA' } }],
+        'example.com',
+      ),
+    ).toMatchObject([{ id: 'valid', dnsNames: ['www.example.com'], issuer: 'Fixture CA' }])
+  })
   it('dedupes CT subdomains from certificate DNS names', () => {
     const certs = parseCertificateSummaries(
       [
