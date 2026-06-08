@@ -1,4 +1,4 @@
-import type { CertificateSummary, DomainReport, DnsRecord, IpRdapSummary, RdapSummary } from './atlas'
+import type { CertificateSummary, DomainReport, DnsRecord, ExternalManualLink, IpRdapSummary, RdapSummary } from './atlas'
 import type { I18nKey, Locale } from './i18n'
 import { translate } from './i18n'
 
@@ -16,7 +16,7 @@ function joinLines(lines: string[]): string {
 
 function dnsSection(records: DnsRecord[]): string {
   if (records.length === 0) return '- No DNS records returned.'
-  return records.map((record) => `- ${record.type} ${record.name} ${record.priority ? `${record.priority} ` : ''}${record.value}`).join('\n')
+  return records.map((record) => `- ${record.type} ${record.name} ${record.priority !== undefined ? `${record.priority} ` : ''}${record.value}`).join('\n')
 }
 
 function rdapSection(rdap: RdapSummary | null, t: (key: I18nKey) => string): string {
@@ -44,6 +44,10 @@ function ipRdapSection(items: IpRdapSummary[], t: (key: I18nKey) => string): str
     .join('\n')
 }
 
+function certificateHash(cert: CertificateSummary): string | undefined {
+  return cert.certDerSha256 ?? cert.certSha256 ?? cert.tbsSha256
+}
+
 function certificateSection(certificates: CertificateSummary[], t: (key: I18nKey) => string): string {
   if (certificates.length === 0) return '- No certificate rows returned.'
   return certificates
@@ -53,10 +57,15 @@ function certificateSection(certificates: CertificateSummary[], t: (key: I18nKey
         `- ${cert.dnsNames.slice(0, 6).join(', ') || cert.id}`,
         `  - ${t('field.issuer')}: ${cert.issuer ?? 'n/a'}`,
         `  - ${t('field.validity')}: ${cert.notBefore ?? 'n/a'} - ${cert.notAfter ?? 'n/a'}`,
-        `  - SHA256: ${cert.certDerSha256 ?? 'n/a'}`,
+        `  - SHA256: ${certificateHash(cert) ?? 'n/a'}`,
       ]),
     )
     .join('\n')
+}
+
+function manualLinksSection(links: ExternalManualLink[] | undefined, t: (key: I18nKey) => string): string {
+  if (!links || links.length === 0) return '- No manual external links configured.'
+  return links.map((link) => `- ${t(link.labelKey as I18nKey)}: \`${link.display}\`\n  - ${link.url}`).join('\n')
 }
 
 export function reportToMarkdown(report: DomainReport, locale: Locale): string {
@@ -66,13 +75,15 @@ export function reportToMarkdown(report: DomainReport, locale: Locale): string {
     '',
     `- ${t('field.timestamp')}: ${report.generatedAt}`,
     `- ${t('app.disclaimer')}`,
-    `- ${t('certs.warning')}`,
+    report.certificates.metadata?.caveat ? `- ${report.certificates.metadata.caveat}` : `- ${t('certs.warning')}`,
     '',
     `## ${t('overview.title')}`,
     `- ${t('overview.records')}: ${report.dns.data.length}`,
     `- ${t('overview.subdomains')}: ${report.subdomains.length}`,
     `- ${t('overview.certificates')}: ${report.certificates.data.length}`,
     `- ${t('overview.githubQueries')}: ${report.githubQueries.length}`,
+    `- ${t('link.externalSearches')}: ${report.externalManualLinks?.length ?? 0}`,
+    report.certificates.metadata?.returnedCount !== undefined ? `- Cert Spotter rows returned: ${report.certificates.metadata.returnedCount}` : '',
     '',
     `## ${t('dns.title')}`,
     dnsSection(report.dns.data),
@@ -88,6 +99,9 @@ export function reportToMarkdown(report: DomainReport, locale: Locale): string {
     '',
     `## ${t('github.title')}`,
     report.githubQueries.map((query) => `- ${t(query.labelKey as I18nKey)}: \`${query.query}\`\n  - ${query.url}`).join('\n'),
+    '',
+    `## ${t('link.externalSearches')}`,
+    manualLinksSection(report.externalManualLinks, t),
     '',
     `## ${t('overview.sources')}`,
     report.sources.map((source) => `- ${source.name}: ${source.url}`).join('\n'),

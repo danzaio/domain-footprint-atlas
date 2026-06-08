@@ -3,6 +3,7 @@ import type {
   DnsRecord,
   DnsType,
   DomainReport,
+  ExternalManualLink,
   EvidenceSource,
   GithubQuery,
   IpRdapSummary,
@@ -50,8 +51,8 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
-function okResult<T>(source: EvidenceSource, data: T, warning?: string): SourceResult<T> {
-  return { status: warning ? 'warning' : 'success', data, error: warning, queriedAt: nowIso(), source }
+function okResult<T>(source: EvidenceSource, data: T, warning?: string, metadata?: SourceResult<T>['metadata']): SourceResult<T> {
+  return { status: warning ? 'warning' : 'success', data, error: warning, queriedAt: nowIso(), source, metadata }
 }
 
 function errorResult<T>(source: EvidenceSource, data: T, error: unknown): SourceResult<T> {
@@ -108,21 +109,63 @@ function stripTrailingDot(value: string): string {
   return value.replace(/\.$/, '')
 }
 
+function decodeDnsCharacterString(bytes: number[], offset: number): { value: string; nextOffset: number } | null {
+  const length = bytes[offset]
+  if (length === undefined || offset + 1 + length > bytes.length) return null
+  let value = ''
+  for (let index = offset + 1; index < offset + 1 + length; index += 1) {
+    const byte = bytes[index]
+    if (byte === undefined) return null
+    value += String.fromCharCode(byte)
+  }
+  return { value, nextOffset: offset + 1 + length }
+}
+
+function decodeRfc3597Caa(value: string): string | undefined {
+  const match = value.match(/^\\#\s+\d+\s+(.+)$/)
+  if (!match) return undefined
+  const bytes = match[1]
+    .trim()
+    .split(/\s+/)
+    .map((hex) => Number.parseInt(hex, 16))
+  if (bytes.some((byte) => !Number.isInteger(byte) || byte < 0 || byte > 255)) return undefined
+  const flags = bytes[0]
+  if (flags === undefined) return undefined
+  const tag = decodeDnsCharacterString(bytes, 1)
+  if (!tag || tag.nextOffset >= bytes.length) return undefined
+  let caaValue = ''
+  for (let index = tag.nextOffset; index < bytes.length; index += 1) {
+    const byte = bytes[index]
+    if (byte === undefined) return undefined
+    caaValue += String.fromCharCode(byte)
+  }
+  if (!/^(?:issue|issuewild|iodef)$/i.test(tag.value) || caaValue.length === 0) return undefined
+  return `${flags} ${tag.value.toLowerCase()} "${caaValue}"`
+}
+
+function normalizeDnsValue(type: DnsType, rawValue: string): string {
+  if (type === 'CAA') return decodeRfc3597Caa(rawValue) ?? rawValue
+  return rawValue
+}
+
 export function parseDnsResponse(type: DnsType, response: DnsResponse): DnsRecord[] {
   return (response.Answer ?? [])
     .filter((answer) => answer.data && answer.type === DNS_TYPE_TO_CODE[type])
     .map((answer) => {
-      const value = stripTrailingDot(answer.data ?? '')
+      const rawValue = stripTrailingDot(answer.data ?? '')
+      const value = normalizeDnsValue(type, rawValue)
       const record: DnsRecord = {
         type: DNS_CODE_TO_TYPE[answer.type ?? DNS_TYPE_TO_CODE[type]] ?? type,
         name: stripTrailingDot(answer.name ?? ''),
         value,
         ttl: answer.TTL,
       }
+      if (value !== rawValue) record.rawValue = rawValue
       if (type === 'MX') {
-        const [priority, ...hostParts] = value.split(/\s+/)
+        const [priority, ...hostParts] = rawValue.split(/\s+/)
+        const host = stripTrailingDot(hostParts.join(' '))
         record.priority = Number(priority)
-        record.value = stripTrailingDot(hostParts.join(' '))
+        record.value = priority === '0' && host === '' ? 'Null MX (0 .)' : host
       }
       return record
     })
@@ -275,6 +318,8 @@ interface CertSpotterIssuance {
   not_before?: string
   not_after?: string
   cert_der_sha256?: string
+  cert_sha256?: string
+  tbs_sha256?: string
 }
 
 export function parseCertificateSummaries(json: unknown, domain: string): CertificateSummary[] {
@@ -288,7 +333,9 @@ export function parseCertificateSummaries(json: unknown, domain: string): Certif
       issuer: item.issuer && typeof item.issuer.name === 'string' ? item.issuer.name : undefined,
       notBefore: typeof item.not_before === 'string' ? item.not_before : undefined,
       notAfter: typeof item.not_after === 'string' ? item.not_after : undefined,
-      certDerSha256: typeof item.cert_der_sha256 === 'string' ? item.cert_der_sha256 : undefined,
+      certDerSha256: typeof item.cert_der_sha256 === 'string' ? item.cert_der_sha256 : typeof item.cert_sha256 === 'string' ? item.cert_sha256 : undefined,
+      certSha256: typeof item.cert_sha256 === 'string' ? item.cert_sha256 : undefined,
+      tbsSha256: typeof item.tbs_sha256 === 'string' ? item.tbs_sha256 : undefined,
       sourceUrl: `${CERT_SPOTTER_BASE}?domain=${encodeURIComponent(domain)}&include_subdomains=true&expand=dns_names&expand=issuer`,
     }))
 }
@@ -297,11 +344,11 @@ export async function fetchCertificates(domain: string): Promise<SourceResult<Ce
   try {
     const url = `${CERT_SPOTTER_BASE}?domain=${encodeURIComponent(domain)}&include_subdomains=true&expand=dns_names&expand=issuer`
     const json = await fetchJson<CertSpotterIssuance[]>(url)
-    return okResult(
-      sourceCatalog.certs,
-      parseCertificateSummaries(json, domain),
-      'Cert Spotter is unauthenticated and rate-limited. Results can be partial.',
-    )
+    const certificates = parseCertificateSummaries(json, domain)
+    return okResult(sourceCatalog.certs, certificates, undefined, {
+      returnedCount: certificates.length,
+      caveat: 'Cert Spotter returns the current unauthenticated page only; counts reflect rows returned in this response.',
+    })
   } catch (error) {
     return errorResult(sourceCatalog.certs, [], error)
   }
@@ -333,6 +380,17 @@ export function buildGithubQueries(domain: string): GithubQuery[] {
   }))
 }
 
+export function buildExternalManualLinks(domain: string): ExternalManualLink[] {
+  return [
+    {
+      id: 'crtsh',
+      labelKey: 'link.crtsh',
+      url: `https://crt.sh/?q=${encodeURIComponent(`%.${domain}`)}`,
+      display: `crt.sh %.${domain}`,
+    },
+  ]
+}
+
 export function extractSubdomains(domain: string, certificates: CertificateSummary[]): string[] {
   return uniqueSorted(
     certificates.flatMap((cert) => cert.dnsNames).map((name) => name.replace(/^\*\./, '')).filter((name) => name === domain || name.endsWith(`.${domain}`)),
@@ -357,6 +415,7 @@ export async function buildDomainReport(domain: string): Promise<DomainReport> {
     certificates,
     subdomains: extractSubdomains(domain, certificates.data),
     githubQueries: buildGithubQueries(domain),
+    externalManualLinks: buildExternalManualLinks(domain),
     warnings,
   }
 }

@@ -49,6 +49,19 @@ This model has practical limits:
 
 Warnings are surfaced in the report instead of hiding failures. A partial report is expected behavior when one public source is unavailable.
 
+## QA baseline domains
+
+Live QA uses a small matrix of public domains to exercise behavior and invariants across passive sources. These domains are baselines for parser coverage, warning behavior, export completeness, and static deployment assumptions. They are not ownership attestations, and public passive sources can drift over time.
+
+| Domain | What it stresses | Expected source limitations |
+| --- | --- | --- |
+| `example.com` | Minimal public footprint, standards-oriented DNS, null MX handling, and predictable RDAP metadata. | Passive sources may intentionally expose sparse data. Certificate transparency and GitHub footprint sections can be small or empty without indicating a failure. |
+| `iana.org` | Registry-style domain metadata, authoritative nameservers, mixed DNS record shapes, and stable public documentation footprint. | RDAP and DNS are expected to be useful, while CT and manual GitHub recipes remain passive public evidence rather than exhaustive inventory. |
+| `cloudflare.com` | Large operational DNS surface, CAA parsing, many certificate transparency rows, and deduped subdomain candidates. | CT data can be noisy, delayed, duplicated, or rate limited. DNS answers can vary by resolver behavior and public endpoint availability. |
+| `github.com` | High-profile SaaS footprint, MX records, certificate rows, RDAP summaries, and visible manual GitHub search links. | Public endpoints can omit, reshape, or throttle data. GitHub footprinting remains link generation only, with no authenticated API calls or scraping. |
+
+QA asserts that the browser app preserves successful panels, surfaces source warnings, decodes supported record formats, exports visible passive evidence, and remains static and unauthenticated. It does not claim perfect truth for public endpoints or certainty over domain ownership.
+
 ## Repository structure
 
 Key paths:

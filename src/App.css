@@ -245,6 +245,7 @@ button.secondary {
 .error-text,
 .muted,
 .source-note,
+.source-metadata,
 .notice {
   color: var(--muted);
   font-size: 0.86rem;
@@ -469,7 +470,9 @@ dd {
 }
 
 .stack-list,
-.query-list {
+.query-list,
+.github-links,
+.external-searches {
   display: grid;
   gap: 0.75rem;
 }
@@ -483,8 +486,42 @@ dd {
 }
 
 .stack-list article strong,
-.query-list span {
+.query-list span,
+.external-searches h3 {
   color: var(--text-h);
+}
+
+.external-searches h3 {
+  font-size: 1rem;
+}
+
+.source-metadata {
+  max-width: 70ch;
+}
+
+.cert-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.cert-name-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.cert-name-list li {
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.18rem 0.45rem;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
 }
 
 .card-grid {

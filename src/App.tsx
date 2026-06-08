@@ -187,34 +187,81 @@ function RdapPanel({ report, t }: { report: DomainReport | null; t: (key: I18nKe
   )
 }
 
+const maxCertificateNames = 12
+
+function certificateHash(cert: DomainReport['certificates']['data'][number]): string | undefined {
+  return cert.certDerSha256 ?? cert.certSha256 ?? cert.tbsSha256
+}
+
+function certificateMetadataLine(metadata: SourceResult<unknown>['metadata'], t: (key: I18nKey) => string): string | null {
+  if (!metadata) return null
+  const parts: string[] = []
+  if (metadata.returnedCount !== undefined) parts.push(`${t('certs.returnedRows')}: ${metadata.returnedCount}`)
+  if (metadata.caveat) parts.push(`${t('certs.caveat')}: ${metadata.caveat}`)
+  return parts.length ? parts.join(' | ') : null
+}
+
+function visibleCertificateNames(names: string[]): { visibleNames: string[]; hiddenCount: number } {
+  return {
+    visibleNames: names.slice(0, maxCertificateNames),
+    hiddenCount: Math.max(0, names.length - maxCertificateNames),
+  }
+}
+
 function CertificatesPanel({ report, t }: { report: DomainReport | null; t: (key: I18nKey) => string }) {
+  const metadataLine = certificateMetadataLine(report?.certificates.metadata, t)
+  const hiddenCertificateCount = report ? Math.max(0, report.certificates.data.length - 18) : 0
+
   return (
     <section className="panel" id="certificates">
       <div className="section-title">
         <h2>{t('certs.title')}</h2>
         <p>{t('certs.warning')}</p>
         {report ? <SourceNote result={report.certificates} t={t} /> : null}
+        {metadataLine ? <p className="source-metadata">{metadataLine}</p> : null}
       </div>
       {report?.certificates.data.length ? (
-        <div className="card-grid">
-          {report.certificates.data.slice(0, 18).map((cert) => (
-            <article className="cert-card" key={cert.id}>
-              <h3>{cert.dnsNames.slice(0, 3).join(', ') || cert.id}</h3>
-              <dl>
-                <dt>{t('field.issuer')}</dt>
-                <dd>{cert.issuer ?? 'n/a'}</dd>
-                <dt>{t('field.validity')}</dt>
-                <dd>{cert.notBefore ?? 'n/a'} - {cert.notAfter ?? 'n/a'}</dd>
-              </dl>
-            </article>
-          ))}
-        </div>
+        <>
+          <div className="card-grid">
+            {report.certificates.data.slice(0, 18).map((cert) => {
+              const hash = certificateHash(cert)
+              const { visibleNames, hiddenCount } = visibleCertificateNames(cert.dnsNames)
+              return (
+                <article className="cert-card" key={cert.id}>
+                  <h3>{cert.dnsNames[0] ?? cert.id}</h3>
+                  {visibleNames.length ? (
+                    <ul className="cert-name-list" aria-label={t('certs.dnsNames')}>
+                      {visibleNames.map((name, index) => (
+                        <li key={`${cert.id}-${name}-${index}`}>{name}</li>
+                      ))}
+                      {hiddenCount ? <li>+{hiddenCount} {t('certs.moreDnsNames')}</li> : null}
+                    </ul>
+                  ) : null}
+                  <dl>
+                    <dt>{t('field.issuer')}</dt>
+                    <dd>{cert.issuer ?? 'n/a'}</dd>
+                    <dt>{t('field.validity')}</dt>
+                    <dd>{cert.notBefore ?? 'n/a'} - {cert.notAfter ?? 'n/a'}</dd>
+                    {hash ? (
+                      <>
+                        <dt>{t('field.hash')}</dt>
+                        <dd><code>{hash}</code></dd>
+                      </>
+                    ) : null}
+                  </dl>
+                </article>
+              )
+            })}
+          </div>
+          {hiddenCertificateCount ? <p className="muted">+{hiddenCertificateCount} {t('certs.moreCertificates')}</p> : null}
+        </>
       ) : (
         <p className="muted">{t('certs.empty')}</p>
       )}
     </section>
   )
 }
+
 
 function GithubPanel({ report, t }: { report: DomainReport | null; t: (key: I18nKey) => string }) {
   return (
@@ -224,17 +271,28 @@ function GithubPanel({ report, t }: { report: DomainReport | null; t: (key: I18n
         <p>{t('github.body')}</p>
       </div>
       {report ? (
-        <div className="query-list">
-          {report.githubQueries.map((query) => (
-            <a href={query.url} target="_blank" rel="noreferrer" key={query.id}>
-              <span>{t(query.labelKey as I18nKey)}</span>
-              <code>{query.query}</code>
-            </a>
-          ))}
-          <a href={`https://crt.sh/?q=${encodeURIComponent(`%.${report.domain}`)}`} target="_blank" rel="noreferrer">
-            <span>{t('link.crtsh')}</span>
-            <code>crt.sh %.{report.domain}</code>
-          </a>
+        <div className="github-links">
+          <div className="query-list">
+            {report.githubQueries.map((query) => (
+              <a href={query.url} target="_blank" rel="noreferrer" key={query.id}>
+                <span>{t(query.labelKey as I18nKey)}</span>
+                <code>{query.query}</code>
+              </a>
+            ))}
+          </div>
+          {report.externalManualLinks?.length ? (
+            <div className="external-searches">
+              <h3>{t('link.externalSearches')}</h3>
+              <div className="query-list">
+                {report.externalManualLinks.map((link) => (
+                  <a href={link.url} target="_blank" rel="noreferrer" key={link.id}>
+                    <span>{t(link.labelKey as I18nKey)}</span>
+                    <code>{link.display}</code>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <p className="muted">{t('app.emptyBody')}</p>
@@ -242,6 +300,7 @@ function GithubPanel({ report, t }: { report: DomainReport | null; t: (key: I18n
     </section>
   )
 }
+
 
 function TimelinePanel({ report, t }: { report: DomainReport | null; t: (key: I18nKey) => string }) {
   const events = useMemo(() => {

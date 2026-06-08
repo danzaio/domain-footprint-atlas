@@ -58,6 +58,36 @@ describe('source parsing', () => {
       }),
     ).toEqual([{ type: 'MX', name: 'example.com', value: 'mail.example.com', ttl: 300, priority: 10 }])
   })
+  it('decodes RFC3597 CAA records into readable issue tags', () => {
+    expect(
+      parseDnsResponse('CAA', {
+        Answer: [
+          {
+            name: 'example.com.',
+            type: 257,
+            TTL: 300,
+            data: '\\# 19 00 05 69 73 73 75 65 64 69 67 69 63 65 72 74 2e 63 6f 6d',
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        type: 'CAA',
+        name: 'example.com',
+        value: '0 issue "digicert.com"',
+        ttl: 300,
+        rawValue: '\\# 19 00 05 69 73 73 75 65 64 69 67 69 63 65 72 74 2e 63 6f 6d',
+      },
+    ])
+  })
+
+  it('parses Null MX answers explicitly with zero priority', () => {
+    expect(
+      parseDnsResponse('MX', {
+        Answer: [{ name: 'example.com.', type: 15, TTL: 300, data: '0 .' }],
+      }),
+    ).toEqual([{ type: 'MX', name: 'example.com', value: 'Null MX (0 .)', ttl: 300, priority: 0 }])
+  })
 
   it('summarizes RDAP domain data', () => {
     const summary = summarizeRdapDomain({
@@ -98,6 +128,32 @@ describe('source parsing', () => {
       ),
     ).toMatchObject([{ id: 'valid', dnsNames: ['www.example.com'], issuer: 'Fixture CA' }])
   })
+  it('preserves Cert Spotter cert_sha256 fallback hashes for export', () => {
+    const hash = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+    const certificates = parseCertificateSummaries(
+      [{ id: 'cert-sha256-only', dns_names: ['example.com'], issuer: { name: 'Fixture CA' }, cert_sha256: hash }],
+      'example.com',
+    )
+
+    expect(certificates).toMatchObject([{ id: 'cert-sha256-only', certDerSha256: hash, certSha256: hash }])
+
+    const report: DomainReport = {
+      domain: 'example.com',
+      generatedAt: '2026-06-08T00:00:00.000Z',
+      sources: [source],
+      dns: result([]),
+      rdap: result(null),
+      ipRdap: result([]),
+      certificates: result(certificates),
+      subdomains: [],
+      githubQueries: [],
+      warnings: [],
+    }
+
+    const markdown = reportToMarkdown(report, 'en-US')
+    expect(markdown).toContain(`SHA256: ${hash}`)
+    expect(markdown).not.toContain('SHA256: n/a')
+  })
   it('dedupes CT subdomains from certificate DNS names', () => {
     const certs = parseCertificateSummaries(
       [
@@ -131,6 +187,33 @@ describe('exports and partial failures', () => {
     expect(markdown).toContain('https://example.test')
     expect(markdown).toContain('RDAP unavailable')
     expect(markdown).toContain('filename:.env "example.com"')
+  })
+  it('includes external manual links in Markdown exports when present', () => {
+    const report: DomainReport = {
+      domain: 'example.com',
+      generatedAt: '2026-06-08T00:00:00.000Z',
+      sources: [source],
+      dns: result([]),
+      rdap: result(null),
+      ipRdap: result([]),
+      certificates: result([]),
+      subdomains: [],
+      githubQueries: [],
+      externalManualLinks: [
+        {
+          id: 'crtsh',
+          labelKey: 'link.crtsh',
+          display: 'example.com',
+          url: 'https://crt.sh/?q=example.com',
+        },
+      ],
+      warnings: [],
+    }
+
+    const markdown = reportToMarkdown(report, 'en-US')
+    expect(markdown).toContain('- External searches: 1')
+    expect(markdown).toContain('Open crt.sh manually: `example.com`')
+    expect(markdown).toContain('https://crt.sh/?q=example.com')
   })
 
   it('preserves successful panels when another source fails', () => {

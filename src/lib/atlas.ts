@@ -15,6 +15,12 @@ export interface SourceResult<T> {
   error?: string
   queriedAt: string
   source: EvidenceSource
+  metadata?: SourceResultMetadata
+}
+
+export interface SourceResultMetadata {
+  returnedCount?: number
+  caveat?: string
 }
 
 export interface DnsRecord {
@@ -23,6 +29,7 @@ export interface DnsRecord {
   value: string
   ttl?: number
   priority?: number
+  rawValue?: string
 }
 
 export interface RdapEntity {
@@ -60,6 +67,8 @@ export interface CertificateSummary {
   notBefore?: string
   notAfter?: string
   certDerSha256?: string
+  certSha256?: string
+  tbsSha256?: string
   sourceUrl: string
 }
 
@@ -68,6 +77,13 @@ export interface GithubQuery {
   labelKey: string
   query: string
   url: string
+}
+
+export interface ExternalManualLink {
+  id: string
+  labelKey: string
+  url: string
+  display: string
 }
 
 export interface DomainReport {
@@ -80,6 +96,7 @@ export interface DomainReport {
   certificates: SourceResult<CertificateSummary[]>
   subdomains: string[]
   githubQueries: GithubQuery[]
+  externalManualLinks?: ExternalManualLink[]
   warnings: string[]
 }
 
